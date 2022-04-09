@@ -13,9 +13,16 @@ int main(int argc, char *argv[]) {
     // Read in name of input auction file
     std::string auctionFileName = argv[1];
 
-    // Build conflict graph 
-    if (buildConflictGraph(auctionFileName) != 0) {
-        std::cerr << "Error building conflict graph from auction file." << std::endl;
+    // Read all auction information from input file
+    if (readAction(auctionFileName) != 0) {
+        std::cerr << "Error reading from auction file." << std::endl;
+        return 1;
+    }
+
+    // Build the conflict graph and write to mwvc file
+    buildConflictGraph();
+    if (writeGraphToMwvcFile() != 0) {
+        std::cerr << "Error writing conflict graph to mwvc file." << std::endl;
         return 1;
     }
 

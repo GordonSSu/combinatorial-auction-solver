@@ -9,6 +9,7 @@
 
 struct Bid {
     int bidId;
+    int setId;
     int value;
     std::vector<int> bidItems;
 };
@@ -23,14 +24,24 @@ int                 numBids;
 std::vector<Bid>    bids;
 std::vector<Edge>   edges;
 
-int buildConflictGraph(std::string auctionFileName);
+bool intersects();
+int readAuction(std::string auctionFileName);
+void buildConflictGraph();
 int writeGraphToMwvcFile();
 
 /*
- * Build the auction's conflict graph,
+ * Returns whether two sorted vectors intersect
+ */
+bool intersects() {
+    // TODO
+    return false;
+}
+
+/*
+ * Initializes all bids in bids vector
  * given an input auction file
  */
-int buildConflictGraph(std::string auctionFileName) {
+int readAuction(std::string auctionFileName) {
     int numItems, numBids;
 
     // Create input stream for auction file
@@ -44,39 +55,46 @@ int buildConflictGraph(std::string auctionFileName) {
         std::string line;
         std::getline(infile, line);
 
-        // Read all lines and populate bids vector
+        // Read all bids and populate bids vector
         for (int v = 0; v < numBids; v++) {
             std::getline(infile, line);
             char split_char = ',';
-
             std::istringstream split(line);
-            std::vector<int> bidItems;
+            
+            Bid newBid = {};
 
-            int value;
-            split >> value;
-            std::cout << "Value: " << value << std::endl;
+            // Read bid value
+            int readValue;
+            split >> readValue;
+            newBid.value = readValue;
 
+            // Read bid items
+            std::vector<int> readBidItems;
             for (std::string each; 
                 std::getline(split, each, split_char); 
-                bidItems.push_back(std::stoi(each))) {
-                std::cout << each << std::endl;
-            }
+                readBidItems.push_back(std::stoi(each)));
+            std::sort(readBidItems.begin(), readBidItems.end());
+            newBid.bidItems = readBidItems;
 
+            std::cout << "Value: " << readValue << std::endl;
+            for (int i = 0; i < readBidItems.size(); i++)
+                std::cout << "Item: " << readBidItems[i] << std::endl;
             std::cout << std::endl;
         }
 
-        // Initialize map of item: bids that contain it
-        // Initialize 
-        // Iterate over all bids:
-        //     update map accordingly
-        //     Make vertex for every bid and add to vector
-        // Iterate
-
         infile.close();
-        return writeGraphToMwvcFile();
+        return 0;
     }
 
     return 1;
+}
+
+/*
+ * Build the auction's conflict graph,
+ * given that the bids vector is populated
+ */
+void buildConflictGraph() {
+
 }
 
 /*
@@ -101,6 +119,7 @@ int writeGraphToMwvcFile() {
             outfile << "e " << edge.v1 << " " << edge.v2 << std::endl;
         }
 
+        outfile.close();
         return 0;
     }
 
