@@ -2,7 +2,6 @@
 #include "auction-solver.h"
 
 int main(int argc, char *argv[]) {
-
     // Input auction file name missing
     if (argc < 2) {
         std::cerr << "Missing argument(s)." << std::endl;
@@ -14,7 +13,7 @@ int main(int argc, char *argv[]) {
     std::string auctionFileName = argv[1];
 
     // Read all auction information from input file
-    if (readAction(auctionFileName) != 0) {
+    if (readAuction(auctionFileName) != 0) {
         std::cerr << "Error reading from auction file." << std::endl;
         return 1;
     }
@@ -27,7 +26,8 @@ int main(int argc, char *argv[]) {
     }
 
     // Compile and run fastmwvc solver on conflict graph
-    const char *compileFastwvcCommand = "g++ fastwvc/mwvc.cpp -O3 --std=c++11 -o mwvc";
+    const char *compileFastwvcCommand = 
+        "g++ fastwvc/mwvc.cpp -O3 --std=c++11 -o mwvc";
     system(compileFastwvcCommand);
 
     // Run fastwvc and create a streambuf that reads its stdout and stderr
@@ -40,7 +40,11 @@ int main(int argc, char *argv[]) {
     std::getline(proc.out(), fastwvcOutputLine1);
     std::getline(proc.out(), fastwvcOutputLine2);
 
-    // Output solved auction results
+    // Output optimal auction results
+    if (outputOptimalAuction(fastwvcOutputLine1, fastwvcOutputLine2) != 0) {
+        std::cerr << "Error writing optimal auction results to file." << std::endl;
+        return 1;
+    }
 
     return 0;
 }

@@ -65,9 +65,11 @@ int main(int argc, char *argv[])
         cout << ", " << best_weight << ", " << best_comp_time << endl;
 
         // Added code to output vertices in WMVC
+        std::string delim = "";
         for (int i = 0; i <= v_num; i++) {
             if (best_v_in_c[i]) {
-                cout << i << ", ";
+                cout << delim << i;
+                delim = ",";
             }
         }
         cout << endl;
