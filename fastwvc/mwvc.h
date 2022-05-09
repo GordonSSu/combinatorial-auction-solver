@@ -783,6 +783,14 @@ void LocalSearch()
             }
         }
 
+        /* Added by Gordon Su from advice by Rillo Orazio:
+         * Check for and return if the set of candidates for the elimination
+         * is too small, as this results in a Segmentation Fault
+         */
+        if (remove_cand_size == 0) {
+            return;
+        }
+
         remove_v = ChooseRemoveV();
         Remove(remove_v);
         time_stamp[remove_v] = step;
