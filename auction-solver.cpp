@@ -3,7 +3,7 @@
 
 int main(int argc, char *argv[]) {
     // Input auction file name missing
-    if (argc < 2) {
+    if (argc < 3) {
         std::cerr << "Missing argument(s)." << std::endl;
         std::cout << "Usage: ./auction-solver [auction file name]" << std::endl;
         return 1;
@@ -16,6 +16,14 @@ int main(int argc, char *argv[]) {
     if (readAuction(auctionFileName) != 0) {
         std::cerr << "Error reading from auction file." << std::endl;
         return 1;
+    }
+
+    // Kernalize
+    if (argv[2] != 0) {
+        // Build bipartite auction graph with each bid occurring twice
+        // Create 
+        // Remove the bids that are not in the max flow from the search space
+        // Continue
     }
 
     // Build the conflict graph and write to mwvc file

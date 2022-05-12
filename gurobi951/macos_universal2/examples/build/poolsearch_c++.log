@@ -1,0 +1,56 @@
+
+Gurobi 9.5.1 (mac64[arm], C++) logging started Mon May  9 23:58:12 2022
+
+Set parameter Username
+Academic license - for non-commercial use only - expires 2022-07-07
+Set parameter PoolSolutions to value 1024
+Set parameter PoolGap to value 0.1
+Set parameter PoolSearchMode to value 2
+Gurobi Optimizer version 9.5.1 build v9.5.1rc2 (mac64[arm])
+Thread count: 10 physical cores, 10 logical processors, using up to 10 threads
+Optimize a model with 1 rows, 10 columns and 10 nonzeros
+Model fingerprint: 0x6d63cbfb
+Variable types: 0 continuous, 10 integer (10 binary)
+Coefficient statistics:
+  Matrix range     [1e+00, 2e+01]
+  Objective range  [1e+00, 3e+01]
+  Bounds range     [1e+00, 1e+00]
+  RHS range        [3e+01, 3e+01]
+Found heuristic solution: objective 65.0000000
+Presolve time: 0.00s
+Presolved: 1 rows, 10 columns, 10 nonzeros
+Variable types: 0 continuous, 10 integer (10 binary)
+
+Root relaxation: objective 6.587500e+01, 1 iterations, 0.00 seconds (0.00 work units)
+
+    Nodes    |    Current Node    |     Objective Bounds      |     Work
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   65.87500    0    1   65.00000   65.87500  1.35%     -    0s
+
+Optimal solution found at node 0 - now completing solution pool...
+
+    Nodes    |    Current Node    |      Pool Obj. Bounds     |     Work
+             |                    |   Worst                   |
+ Expl Unexpl |  Obj  Depth IntInf | Incumbent    BestBd   Gap | It/Node Time
+
+     0     0   65.00000    0    1          -   65.00000      -     -    0s
+     0     0   65.00000    0    1          -   65.00000      -     -    0s
+     0     0   65.00000    0    1          -   65.00000      -     -    0s
+     0     0   65.00000    0    5          -   65.00000      -     -    0s
+     0     0   65.00000    0    4          -   65.00000      -     -    0s
+     0     0   65.00000    0    4          -   65.00000      -     -    0s
+     0     2   65.00000    0    4          -   65.00000      -     -    0s
+
+Cutting planes:
+  Cover: 3
+  MIR: 1
+
+Explored 78 nodes (73 simplex iterations) in 0.02 seconds (0.00 work units)
+Thread count was 10 (of 10 available processors)
+
+Solution count 21: 65 65 64 ... 59
+No other solutions better than -1e+100
+
+Optimal solution found (tolerance 1.00e-04)
+Best objective 6.500000000000e+01, best bound 6.500000000000e+01, gap 0.0000%
