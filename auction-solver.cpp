@@ -1,3 +1,4 @@
+#include <chrono>
 #include <sstream>
 #include "auction-solver.h"
 
@@ -18,16 +19,26 @@ int main(int argc, char *argv[]) {
         return 1;
     }
 
+    // Build the conflict graph
+    buildConflictGraph();
+
     // Kernalize
-    if (argv[2] != 0) {
-        // Build bipartite auction graph with each bid occurring twice
-        // Create 
-        // Remove the bids that are not in the max flow from the search space
-        // Continue
+    if (argv[2][0] != '0') {
+        int kernalizationOutput = kernalize();
+
+        // Kernalization error
+        if (kernalizationOutput == -1) {
+            return 1;
+        }
+
+        // Kernalization has "solved" the problem
+        else if (kernalizationOutput == 0) {
+            outputOptimalAuction("", "");
+            return 0;
+        }
     }
 
-    // Build the conflict graph and write to mwvc file
-    buildConflictGraph();
+    // Write conflict graph to mwvc file
     if (writeGraphToMwvcFile() != 0) {
         std::cerr << "Error writing conflict graph to mwvc file." << std::endl;
         return 1;
@@ -47,6 +58,10 @@ int main(int argc, char *argv[]) {
     std::string fastwvcOutputLine2;
     std::getline(proc.out(), fastwvcOutputLine1);
     std::getline(proc.out(), fastwvcOutputLine2);
+
+    // Output fastwvc output
+    std::cout << fastwvcOutputLine1 << std::endl;
+    std::cout << fastwvcOutputLine2 << std::endl;
 
     // Output optimal auction results
     if (outputOptimalAuction(fastwvcOutputLine1, fastwvcOutputLine2) != 0) {

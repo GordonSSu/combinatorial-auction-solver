@@ -3,6 +3,7 @@
 #include <iostream>
 #include <iomanip>
 #include <string>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 #include "pstreams-1.0.3/pstream.h"
@@ -10,10 +11,9 @@
 #include "gurobi_c++.h"
 
 struct Bid {
-    std::vector<int> bidItems;
+    std::vector<int> bidGoods;
     int bidId;
     int value;
-    bool pruned = false;
 };
 
 struct Edge {
@@ -21,27 +21,30 @@ struct Edge {
     int v2;
 };
 
-int                 numItems;
-int                 numBids;
-int                 numPruned0;
-int                 numPruned1;
-long long           totalValue;
-long long           excludedBidsValues = 0;
-long long           includedBidsValues = 0;
-std::vector<Bid>    bids;
-std::vector<Bid>    bidsExcludedFromMwvcByKernalization;
-std::vector<Edge>   edges;
+int                     numGoods;
+int                     numBids;
+int                     numPruned0;
+int                     numPruned1;
+long long               totalValue;
+long long               excludedBidsValues = 0;
+long long               includedBidsValues = 0;
+std::vector<Bid>        bids;
+std::vector<Bid>        bidsExcludedFromMwvcByKernalization;
+std::vector<Edge>       edges;
+std::unordered_map<int, std::vector<int>>   bidsContainingGood;
 
 // General solver functions
 void resetState();
 bool intersects();
 std::string convertToDzn(std::string fileName);
-int readAuction(std::string auctionFileName);
-int readCatsAuction(std::string auctionFileName);
+int readAuctionMwvc(std::string auctionFileName);
+int readCatsAuctionMwvc(std::string auctionFileName);
+int readCatsAuctionSetPacking(std::string auctionFileName);
 void buildConflictGraph();
 int writeGraphToMwvcFile();
 int outputOptimalAuction(std::string mwvcOutLine1, std::string mwvcOutLine2);
-long long gurobiSolve();
+long long gurobiMwvcSolve();
+long long gurobiSetPackingSolve();
 
 // Kernalization logic
 int kernalize();
@@ -51,7 +54,7 @@ void refactorConflictGraph(std::vector<Bid>& remainingBids);
  * Resets auction state
  */
 void resetState() {
-    numItems = 0;
+    numGoods = 0;
     numBids = 0;
     numPruned0 = 0;
     numPruned1 = 0;
@@ -62,19 +65,20 @@ void resetState() {
     bids.clear();
     bidsExcludedFromMwvcByKernalization.clear();
     edges.clear();
+    bidsContainingGood.clear();
 }
 
 /*
- * Returns whether two bids share a bid item
- * assuming that the bidItems vectors are sorted
+ * Returns whether two bids share a good
+ * assuming that the bidGoods vectors are sorted
  */
 int intersects(Bid& bid1, Bid& bid2) {
-    auto b1Iter = bid1.bidItems.begin();
-    auto b2Iter = bid2.bidItems.begin();
+    auto b1Iter = bid1.bidGoods.begin();
+    auto b2Iter = bid2.bidGoods.begin();
 
-    // Loop: if shared bid item is found, return true
-    while (b1Iter != bid1.bidItems.end() && 
-        b2Iter != bid2.bidItems.end()) {
+    // Loop: if shared good is found, return true
+    while (b1Iter != bid1.bidGoods.end() && 
+        b2Iter != bid2.bidGoods.end()) {
         if (*b1Iter < *b2Iter) {
             ++b1Iter;
         } else if (*b1Iter > *b2Iter) {
@@ -138,21 +142,21 @@ std::string convertToDzn(std::string fileName) {
             for (int i = 0; i < nBids; i++) {
                 std::vector<int> bid;
                 int bidValue;
-                std::string bidItem;
+                std::string bidGood;
 
                 // Read bid line
                 std::getline(infile, line);
                 std::istringstream bidSplit(line);
 
-                // Skip row number, then read bid value and first item
+                // Skip row number, then read bid value and first good
                 bidSplit >> bidValue;
                 bidSplit >> bidValue;
-                bidSplit >> bidItem;
+                bidSplit >> bidGood;
 
-                // Read bid items
-                while (bidItem != "#") {
-                    bid.push_back(std::stoi(bidItem) + 1);
-                    bidSplit >> bidItem;
+                // Read bid's goods
+                while (bidGood != "#") {
+                    bid.push_back(std::stoi(bidGood) + 1);
+                    bidSplit >> bidGood;
                 }
 
                 bids.push_back(bid);
@@ -221,13 +225,13 @@ std::string convertToDzn(std::string fileName) {
  * Initializes all bids in bids vector
  * given an input auction file
  */
-int readAuction(std::string auctionFileName) {
+int readAuctionMwvc(std::string auctionFileName) {
     // Create input stream for auction file
     std::ifstream infile(auctionFileName);
 
     if (infile.is_open()) {
-        // Read in the number of items and bids in the auction
-        infile >> numItems >> numBids;
+        // Read in the number of goods and bids in the auction
+        infile >> numGoods >> numBids;
 
         // Consume new line character
         std::string line;
@@ -248,13 +252,13 @@ int readAuction(std::string auctionFileName) {
             newBid.value = readValue;
             totalValue += static_cast<long long>(readValue);
 
-            // Read bid items
-            std::vector<int> readBidItems;
+            // Read bid's goods
+            std::vector<int> readbidGoods;
             for (std::string each; 
                 std::getline(split, each, delim); 
-                readBidItems.push_back(std::stoi(each)));
-            std::sort(readBidItems.begin(), readBidItems.end());
-            newBid.bidItems = readBidItems;
+                readbidGoods.push_back(std::stoi(each)));
+            std::sort(readbidGoods.begin(), readbidGoods.end());
+            newBid.bidGoods = readbidGoods;
 
             bids.push_back(newBid);
         }
@@ -270,7 +274,7 @@ int readAuction(std::string auctionFileName) {
  * Initializes all bids in bids vector
  * given an input CATS-generated auction file
  */
-int readCatsAuction(std::string auctionFileName) {
+int readCatsAuctionMwvc(std::string auctionFileName) {
     // Create input stream for auction file
     std::ifstream infile(auctionFileName);
 
@@ -298,7 +302,7 @@ int readCatsAuction(std::string auctionFileName) {
         }
 
         // Sum total number of goods
-        numItems = goods + dummy;
+        numGoods = goods + dummy;
 
         // Consume empty line
         std::getline(infile, line);
@@ -307,34 +311,115 @@ int readCatsAuction(std::string auctionFileName) {
         for (int bidNum = 1; bidNum <= numBids; bidNum++) {
             // Initialize bid and fields
             Bid newBid = {};
-            std::vector<int> bid;
-            std::vector<int> readBidItems;
+            std::vector<int> readbidGoods;
             int bidValue;
-            std::string bidItem;
+            std::string bidGood;
             newBid.bidId = bidNum;
 
             // Read bid line
             std::getline(infile, line);
             std::istringstream bidSplit(line);
 
-            // Skip row number, then read bid value and first item
+            // Skip row number, then read bid value and first good
             bidSplit >> bidValue;
             bidSplit >> bidValue;
-            bidSplit >> bidItem;
+            bidSplit >> bidGood;
 
             // Set bid value
             newBid.value = bidValue;
             totalValue += static_cast<long long>(bidValue);
 
-            // Read bid items
-            while (bidItem != "#") {
-                readBidItems.push_back(std::stoi(bidItem) + 1);
-                bidSplit >> bidItem;
+            // Read bid's goods
+            while (bidGood != "#") {
+                readbidGoods.push_back(std::stoi(bidGood) + 1);
+                bidSplit >> bidGood;
             }
 
-            std::sort(readBidItems.begin(), readBidItems.end());
-            newBid.bidItems = readBidItems;
+            std::sort(readbidGoods.begin(), readbidGoods.end());
+            newBid.bidGoods = readbidGoods;
             bids.push_back(newBid);
+        }
+
+        infile.close();
+        return 0;
+    }
+
+    return 1;
+}
+
+/*
+ * Initializes all bids in bids vector
+ * given an input CATS-generated auction file
+ */
+int readCatsAuctionSetPacking(std::string auctionFileName) {
+    // Create input stream for auction file
+    std::ifstream infile(auctionFileName);
+
+    // Read from CATS file
+    if (infile.is_open()) {
+        int goods;
+        int dummy;
+
+        // Read line by line
+        std::string line;
+        while (std::getline(infile, line)) {
+            std::istringstream split(line);
+
+            std::string readValue;
+            split >> readValue;
+
+            if (readValue == "goods") {
+                split >> goods;
+            } else if (readValue == "bids") {
+                split >> numBids;
+            } else if (readValue == "dummy") {
+                split >> dummy;
+                break;
+            }
+        }
+
+        // Sum total number of goods
+        numGoods = goods + dummy;
+
+        // Consume empty line
+        std::getline(infile, line);
+
+        // Read in and populate bids (do not need to set bidGoods)
+        for (int bidNum = 1; bidNum <= numBids; bidNum++) {
+            // Initialize bid and fields
+            Bid newBid = {};
+            int bidValue;
+            std::string bidGood;
+            newBid.bidId = bidNum;
+
+            // Read bid line
+            std::getline(infile, line);
+            std::istringstream bidSplit(line);
+
+            // Skip row number, then read bid value and first good
+            bidSplit >> bidValue;
+            bidSplit >> bidValue;
+            bidSplit >> bidGood;
+
+            // Set bid value
+            newBid.value = bidValue;
+            bids.push_back(newBid);
+
+            // Read bid's goods
+            while (bidGood != "#") {
+                int good = std::stoi(bidGood) + 1;
+                auto findGood = bidsContainingGood.find(good);
+
+                // Track bid that contains the given good
+                if (findGood != bidsContainingGood.end()) {
+                    (findGood -> second).push_back(bidNum);
+                } else {
+                    std::vector<int> bidsContainingThisGood{bidNum};
+                    bidsContainingGood.insert(std::make_pair(good, bidsContainingThisGood));
+                }
+
+                bidSplit >> bidGood;
+            }
         }
 
         infile.close();
@@ -356,7 +441,7 @@ void buildConflictGraph() {
             Bid& bid1 = bids[bidIndex1];
             Bid& bid2 = bids[bidIndex2];
 
-            // Add edge if shared bid items are found
+            // Add edge if shared goods are found
             if (intersects(bid1, bid2)) {
                 Edge newEdge = {bid1.bidId, bid2.bidId};
                 edges.push_back(newEdge);
@@ -380,9 +465,7 @@ int writeGraphToMwvcFile() {
 
         // Write vertices to file
         for (Bid& bid : bids) {
-            if (!bid.pruned) {
-                outfile << "v " << bid.bidId << " " << bid.value << std::endl;
-            }
+            outfile << "v " << bid.bidId << " " << bid.value << std::endl;
         }
 
         // Write edges to file
@@ -392,45 +475,6 @@ int writeGraphToMwvcFile() {
         }
 
         outfile.close();
-
-
-
-
-
-
-
-
-
-
-        long bidSum = 0;
-        long prunedSum = 0;
-        for (Bid& bid : bids) {
-            if (!bid.pruned) {
-                prunedSum += bid.value;
-            }
-
-            bidSum += bid.value;
-        }
-        std::cout << "BID SUM: " << bidSum << std::endl;
-        std::cout << "PRUNED SUM: " << prunedSum << std::endl;
-
-
-        long edgeSum = 0;
-        for (Edge& edge : edges) {
-            edgeSum = edgeSum + bids[edge.v1 - 1].value + bids[edge.v2 - 1].value;
-        }
-        std::cout << "EDGE SUM: " << edgeSum << std::endl;
-
-
-
-
-
-
-
-
-
-
-
         return 0;
     }
 
@@ -438,141 +482,107 @@ int writeGraphToMwvcFile() {
 }
 
 int outputOptimalAuction(std::string mwvcOutLine1, std::string mwvcOutLine2) {
-    // Create input stream for auction file
-    std::ofstream outfile("auction_results.txt");
+    try {
+        // Create input stream for auction file
+        std::ofstream outfile("auction_results.txt");
 
+        if (outfile.is_open()) {
+            long long maxValue;
 
+            // Read MWVC value from line, if not empty
+            if (!mwvcOutLine1.empty()) {
+                // Read in MWVC value
+                int minValueStart = mwvcOutLine1.find_first_of(", ");
+                int minValueEnd = mwvcOutLine1.find_first_of(", ", minValueStart + 2);
+                int mwvcValue = std::stoll(
+                    mwvcOutLine1.substr(minValueStart + 2, minValueEnd - minValueStart - 2));
+                maxValue = totalValue - mwvcValue + excludedBidsValues;
+            }
 
+            // Take max value from kernalization step
+            else {
+                maxValue = excludedBidsValues;
+            }
 
-    std::cout << "LINE 1: " << mwvcOutLine1 << std::endl;
-    std::cout << "LINE 2: " << mwvcOutLine2 << std::endl;
+            // Write and print MWVC file header
+            outfile << maxValue << " " << std::endl;
+            std::cout << "MAX AUCTION VALUE: " << maxValue << std::endl;
+            // std::cout << "Bids:" << std::endl;
 
+            // Fields for validating winning auction
+            int totalBidsValue = 0;
 
+            // Read bids, if line not empty
+            if (!mwvcOutLine2.empty()) {
+                // Read bids
+                std::istringstream split(mwvcOutLine2);
+                char delim = ',';
+                std::vector<int> mwvcBids;
+                for (std::string each; 
+                    std::getline(split, each, delim); 
+                    mwvcBids.push_back(std::stoi(each)));
 
-
-    if (outfile.is_open()) {
-        long long maxValue;
-
-        // Read MWVC value from line, if not empty
-        if (!mwvcOutLine1.empty()) {
-            // Read in MWVC value
-            int minValueStart = mwvcOutLine1.find_first_of(", ");
-            int minValueEnd = mwvcOutLine1.find_first_of(", ", minValueStart + 2);
-            int mwvcValue = std::stoll(
-                mwvcOutLine1.substr(minValueStart + 2, minValueEnd - minValueStart - 2));
-
-
-
-            std::cout << "MWVC VALUE: " << mwvcValue << std::endl;
-
-
-
-            maxValue = totalValue - mwvcValue + excludedBidsValues;
-        }
-
-        // Take max value from kernalization step
-        else {
-            maxValue = excludedBidsValues;
-        }
-
-        // Write and print MWVC file header
-        outfile << maxValue << " " << std::endl;
-        std::cout << "MAX AUCTION VALUE: " << maxValue << std::endl;
-        // std::cout << "Bids:" << std::endl;
-
-        // Fields for validating winning auction
-        std::unordered_set<int> seenItems;
-        int totalBidsValue = 0;
-        bool bidsOverlap = false;
-
-        // Read bids, if line not empty
-        if (!mwvcOutLine2.empty()) {
-            // Read bids
-            std::istringstream split(mwvcOutLine2);
-            char delim = ',';
-            std::vector<int> mwvcBids;
-            for (std::string each; 
-                std::getline(split, each, delim); 
-                mwvcBids.push_back(std::stoi(each)));
-
-            // Write and print bids in optimal auction
-            int mwvcBidsIndex = 0;
-            for (Bid& bid : bids) {
-                // Skip over bids in MWVC bids or pruned bids
-                if ((mwvcBidsIndex < mwvcBids.size() && bid.bidId == mwvcBids[mwvcBidsIndex])) {
-                    mwvcBidsIndex++;
-                }
-
-                // Print bids NOT in MWVC bids and NOT pruned
-                else if (!bid.pruned) {
-                    outfile << bid.value << "\t";
-                    // std::cout << bid.value << "\t";
-                    std::string separator = "";
-
-                    // Validate winning auction value
-                    totalBidsValue += bid.value;
-
-                    for (int bidItem : bid.bidItems) {
-                        outfile << separator << bidItem;
-                        // std::cout << separator << bidItem;
-                        separator = ","; 
-
-                        // Validate that no bids "intersect"
-                        if (seenItems.find(bidItem) != seenItems.end()) {
-                            bidsOverlap = true;
-                            break;
-                        } else {
-                            seenItems.insert(bidItem);
-                        }
+                // Write and print bids in optimal auction
+                int mwvcBidsIndex = 0;
+                for (Bid& bid : bids) {
+                    // Skip over bids in MWVC bids
+                    if ((mwvcBidsIndex < mwvcBids.size() && bid.bidId == mwvcBids[mwvcBidsIndex])) {
+                        mwvcBidsIndex++;
                     }
 
-                    outfile << std::endl;
-                    // std::cout << std::endl;
-                }
-            }
-        }
+                    // Print bids NOT in MWVC bids
+                    else {
+                        outfile << bid.value << "\t";
+                        // std::cout << bid.value << "\t";
+                        std::string separator = "";
 
-        // Print bids confirmed by the kernalization step
-        for (Bid& bid : bidsExcludedFromMwvcByKernalization) {
-            outfile << bid.value << "\t";
-            // std::cout << bid.value << "\t";
+                        // Validate winning auction value
+                        totalBidsValue += bid.value;
 
-            std::string separator = "";
+                        for (int bidGood : bid.bidGoods) {
+                            outfile << separator << bidGood;
+                            // std::cout << separator << bidGood;
+                            separator = ",";
+                        }
 
-            // Validate winning auction value
-            totalBidsValue += bid.value;
-
-            for (int bidItem : bid.bidItems) {
-                outfile << separator << bidItem;
-                // std::cout << separator << bidItem;
-                separator = ",";
-
-                // Validate that no bids "intersect"
-                if (seenItems.find(bidItem) != seenItems.end()) {
-                    bidsOverlap = true;
-                    break;
-                } else {
-                    seenItems.insert(bidItem);
+                        outfile << std::endl;
+                        // std::cout << std::endl;
+                    }
                 }
             }
 
-            outfile << std::endl;
-            // std::cout << std::endl;
-        }
+            // Print bids confirmed by the kernalization step
+            for (Bid& bid : bidsExcludedFromMwvcByKernalization) {
+                outfile << bid.value << "\t";
+                // std::cout << bid.value << "\t";
 
-        // Output validation results
-        if (bidsOverlap) {
-            std::cout << "Bids in auction overlap; INVALID SOLUTION" << std::endl;
-        } else {
+                std::string separator = "";
+
+                // Validate winning auction value
+                totalBidsValue += bid.value;
+
+                for (int bidGood : bid.bidGoods) {
+                    outfile << separator << bidGood;
+                    // std::cout << separator << bidGood;
+                    separator = ",";
+                }
+
+                outfile << std::endl;
+                // std::cout << std::endl;
+            }
+
+            // Output validation results
             std::cout << "Validated Winning Auction Value: " << totalBidsValue << std::endl;
             // std::cout << "TotalValue: " << totalValue << std::endl;
             // std::cout << "FastWVC Line 1: " << mwvcOutLine1 << std::endl;
             // std::cout << "FastWVC Line 2: " << mwvcOutLine2 << std::endl;
-            // std::cout << "Num bids excluded via kernalization: " << bidsExcludedFromMwvcByKernalization.size() << std::endl;
-        }       
+            // std::cout << "Num bids excluded via kernalization: " << bidsExcludedFromMwvcByKernalization.size() << std::endl;      
 
-        outfile.close();
-        return 0;
+            outfile.close();
+            return 0;
+        }
+    } catch (...) {
+        return 1;
     }
 
     return 1;
@@ -646,9 +656,12 @@ int kernalize() {
             }
         }
 
-        // Reconfigure bids and edges in conflict graph
-        totalValue = totalValue - excludedBidsValues - includedBidsValues;
-        refactorConflictGraph(remainingBids);
+        // Bids pruned
+        if (bids.size() > remainingBids.size()) {
+            // Reconfigure bids and edges in conflict graph
+            totalValue = totalValue - excludedBidsValues - includedBidsValues;
+            refactorConflictGraph(remainingBids);
+        }
         
         // Output number of pruned bids
         std::cout << "Num pruned = 0: " << numPruned0 << std::endl;
@@ -671,45 +684,40 @@ int kernalize() {
  * Removing edges containing bids "pruned" by the kernalization
  */
 void refactorConflictGraph(std::vector<Bid>& remainingBids) {
-    // New edges vector after removing edges contained pruned bids
-    std::vector<Edge> remainingEdges;
+    // Reassign IDs in remainingBids
+    bids = remainingBids;
+    numBids = bids.size();
 
-    // Bid IDs of remaining bids
-    std::unordered_set<int> remainingBidIds;
-
-    // Populate remainingBidIds hash set
-    for (Bid& bid : remainingBids) {
-        remainingBidIds.insert(bid.bidId);
-    }
-
-    // Filter out all edges containing pruned bids
-    for (Edge& edge : edges) {
-        // Add edge if and only if it connects two remaining (non-pruned) bids
-        if (remainingBidIds.find(edge.v1) != remainingBidIds.end() &&
-            remainingBidIds.find(edge.v2) != remainingBidIds.end()) {
-            remainingEdges.push_back(edge);
+    std::unordered_map<int, int> reassignedIds;
+    for (int bidIndex = 0; bidIndex < numBids; bidIndex++) {
+        if (bids[bidIndex].bidId != bidIndex + 1) {
+            reassignedIds.insert(std::make_pair(bids[bidIndex].bidId, bidIndex + 1));
+            bids[bidIndex].bidId = bidIndex + 1;
         }
     }
 
-    // Set the edge vector to the remaining edges
-    edges = remainingEdges;
+    // Refactor edges
+    edges.clear();
+    for (int bidIndex1 = 0; bidIndex1 < (numBids - 1); bidIndex1++) {
+        for (int bidIndex2 = bidIndex1 + 1; 
+                bidIndex2 < numBids; bidIndex2++) {
+            Bid& bid1 = bids[bidIndex1];
+            Bid& bid2 = bids[bidIndex2];
 
-    // Nullify pruned bids by setting 'pruned' to true
-    numBids = remainingBids.size();
-    for (Bid& bid : bids) {
-        if (remainingBidIds.find(bid.bidId) == remainingBidIds.end()) {
-            bid.pruned = true;
+            // Add edge if shared goods are found
+            if (intersects(bid1, bid2)) {
+                Edge newEdge = {bid1.bidId, bid2.bidId};
+                edges.push_back(newEdge);
+            }
         }
     }
 }
 
 /*
- * Kernalize conflict graph via a MWVC
- * (with LP relaxation to leverage the half-integrality property)
- * Return the number of bids remaining to search through
- * (to determine whether fastwvc is necessary)
+ * Formulate combinatorial auction as min weighted set problem
+ * Solve by invoking Gurobi
  */
-long long gurobiSolve() {
+long long gurobiMwvcSolve() {
     try {
         // Create new environment and suppress output
         GRBEnv* env = new GRBEnv();
@@ -744,8 +752,67 @@ long long gurobiSolve() {
 
         // Solve
         model.optimize();
+        return totalValue + excludedBidsValues - static_cast<long long>(model.get(GRB_DoubleAttr_ObjVal));
+    } catch (GRBException e) {
+        std::cout << "Error code = " << e.getErrorCode() << std::endl;
+        std::cout << e.getMessage() << std::endl;
+    } catch (...) {
+        std::cout << "Exception during optimization" << std::endl;
+    }
 
-        return totalValue - model.get(GRB_DoubleAttr_ObjVal);
+    return -1;
+}
+
+/*
+ * Formulate combinatorial auction as min weighted set problem
+ * Solve by invoking Gurobi
+ */
+long long gurobiSetPackingSolve() {
+    try {
+        // Create new environment and suppress output
+        GRBEnv* env = new GRBEnv();
+        env -> set(GRB_IntParam_OutputFlag, 0);
+
+        // Create new model
+        GRBModel model = GRBModel(*env);
+        model.set(GRB_StringAttr_ModelName, "gurobi_set_packing_solver");
+
+        std::vector<GRBVar> bidVars;
+
+        // Create a decision variable for each bid
+        for (int i = 0; i < numBids; i++) {
+            GRBVar newVar = model.addVar(0.0, 1.0, bids[i].value, GRB_BINARY, "");
+            bidVars.push_back(newVar);
+        }
+            
+        // Create objective function
+        GRBLinExpr* objFunction = new GRBLinExpr();
+        for (int i = 0; i < numBids; i++) {
+            GRBLinExpr* term = new GRBLinExpr(bidVars[i], bids[i].value);
+            *objFunction += *term;
+        }
+
+        // Set objective function to minimize
+        model.setObjective(*objFunction, GRB_MAXIMIZE);
+
+        // Add constraints
+        for (auto& goodAndBids : bidsContainingGood) {
+            // If a good has multiple bids, apply a constraint
+            if ((goodAndBids.second).size() > 1) {
+                // 
+                GRBLinExpr* constraint = new GRBLinExpr();
+
+                for (int bidId : goodAndBids.second) {
+                    *constraint += *(new GRBLinExpr(bidVars[bidId - 1]));
+                }
+
+                model.addConstr(*constraint <= 1.0f, "");
+            }
+        }
+
+        // Solve
+        model.optimize();
+        return static_cast<long long>(model.get(GRB_DoubleAttr_ObjVal));
     } catch (GRBException e) {
         std::cout << "Error code = " << e.getErrorCode() << std::endl;
         std::cout << e.getMessage() << std::endl;

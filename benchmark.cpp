@@ -36,7 +36,7 @@ int main(int argc, char *argv[]) {
     std::cout << "============================FastWVC============================" << std::endl;
 
     // Read all auction information from input file
-    if (readCatsAuction(auctionFileName) != 0) {
+    if (readCatsAuctionMwvc(auctionFileName) != 0) {
         std::cerr << "Error reading from auction file." << std::endl;
         return 1;
     }
@@ -65,7 +65,6 @@ int main(int argc, char *argv[]) {
             auto ms = duration * 0.001;
             std::cout << "FastWVC - solved via kernalization (ms): " << ms << std::endl;
             outputOptimalAuction("", "");
-            
             solvedByKernelization = true;
         }
     } else {
@@ -104,52 +103,58 @@ int main(int argc, char *argv[]) {
         // Output optimal auction results
         if (outputOptimalAuction(fastwvcOutputLine1, fastwvcOutputLine2) != 0) {
             std::cerr << "Error writing optimal auction results to file." << std::endl;
-            return 1;
+            std::cerr << fastwvcOutputLine1 << std::endl;
+            std::cerr << fastwvcOutputLine2 << std::endl;
         }
     }
 
 
     /****************************************************************************************************
 
-    Gurobi Benchmark
+    Gurobi MWVC Benchmark
 
     ****************************************************************************************************/
 
 
-    // Output header
-    std::cout << "\n============================Gurobi============================" << std::endl;
+    try {
+        // Output header
+        std::cout << "\n============================Gurobi MWVC Formulation============================" << std::endl;
 
-    resetState();
-    // Read in auction and build conflict graph
-    readCatsAuction(auctionFileName);
-    buildConflictGraph();
+        resetState();
+        // Read in auction and build conflict graph
+        readCatsAuctionMwvc(auctionFileName);
+        buildConflictGraph();
+        startTime = std::chrono::high_resolution_clock::now();
 
-    int bestGurobiAuction = gurobiSolve();
+        long long bestGurobiMwvcAuction = gurobiMwvcSolve();
 
-    // Output benchmarking results
-    endTime = std::chrono::high_resolution_clock::now();
-    auto start = std::chrono::time_point_cast<std::chrono::microseconds>(startTime).time_since_epoch().count();
-    auto end = std::chrono::time_point_cast<std::chrono::microseconds>(endTime).time_since_epoch().count();
-    auto duration = end - start;
-    auto ms = duration * 0.001;
-    std::cout << "Gurobi (ms): " << ms << std::endl;
+        // Output benchmarking results
+        endTime = std::chrono::high_resolution_clock::now();
+        auto start = std::chrono::time_point_cast<std::chrono::microseconds>(startTime).time_since_epoch().count();
+        auto end = std::chrono::time_point_cast<std::chrono::microseconds>(endTime).time_since_epoch().count();
+        auto duration = end - start;
+        auto ms = duration * 0.001;
+        std::cout << "Gurobi MWVC (ms): " << ms << std::endl;
 
-    std::cout << "MAX AUCTION VALUE: " << bestGurobiAuction << std::endl;
+        std::cout << "MAX AUCTION VALUE: " << bestGurobiMwvcAuction << std::endl;
+    } catch (...) {
+        std::cerr << "Error in Gurobi MWVC benchmark." << std::endl;
+    }
 
 
-    // /****************************************************************************************************
+    /****************************************************************************************************
 
-    // Gurobi Benchmark
+    Kernalized Gurobi MWVC Benchmark
 
-    // ****************************************************************************************************/
+    ****************************************************************************************************/
 
 
     // // Output header
-    // std::cout << "\n============================Gurobi============================" << std::endl;
+    // std::cout << "\n============================Gurobi MWVC Formulation============================" << std::endl;
 
     // resetState();
     // // Read in auction and build conflict graph
-    // readCatsAuction(auctionFileName);
+    // readCatsAuctionMwvc(auctionFileName);
     // buildConflictGraph();
 
     // // Kernalize
@@ -171,7 +176,7 @@ int main(int argc, char *argv[]) {
     //         auto end = std::chrono::time_point_cast<std::chrono::microseconds>(endTime).time_since_epoch().count();
     //         auto duration = end - start;
     //         auto ms = duration * 0.001;
-    //         std::cout << "Gurobi - solved via kernalization (ms): " << ms << std::endl;
+    //         std::cout << "Gurobi MWVC - solved via kernalization (ms): " << ms << std::endl;
     //         outputOptimalAuction("", "");
             
     //         solvedByKernelization = true;
@@ -182,7 +187,7 @@ int main(int argc, char *argv[]) {
     // }
 
     // if (!solvedByKernelization) {
-    //     int bestGurobiAuction = gurobiSolve();
+    //     long long bestGurobiMwvcAuction = gurobiMwvcSolve();
 
     //     // Output benchmarking results
     //     endTime = std::chrono::high_resolution_clock::now();
@@ -190,17 +195,48 @@ int main(int argc, char *argv[]) {
     //     auto end = std::chrono::time_point_cast<std::chrono::microseconds>(endTime).time_since_epoch().count();
     //     auto duration = end - start;
     //     auto ms = duration * 0.001;
-    //     std::cout << "Gurobi (ms): " << ms << std::endl;
+    //     std::cout << "Gurobi MWVC (ms): " << ms << std::endl;
 
-    //     std::cout << "MAX AUCTION VALUE: " << bestGurobiAuction << std::endl;
+    //     std::cout << "MAX AUCTION VALUE: " << bestGurobiMwvcAuction << std::endl;
     // }
 
 
     /****************************************************************************************************
 
-    MiniZinc Benchmark
+    Gurobi Set Packing Benchmark
 
     ****************************************************************************************************/
+
+
+    try {
+        // Output header
+        std::cout << "\n============================Gurobi Set Packing Formulation============================" << std::endl;
+
+        resetState();
+        // Read in auction and build conflict graph
+        readCatsAuctionSetPacking(auctionFileName);
+        startTime = std::chrono::high_resolution_clock::now();
+
+        long long bestGurobiSetPackingAuction = gurobiSetPackingSolve();
+
+        // Output benchmarking results
+        endTime = std::chrono::high_resolution_clock::now();
+        auto start = std::chrono::time_point_cast<std::chrono::microseconds>(startTime).time_since_epoch().count();
+        auto end = std::chrono::time_point_cast<std::chrono::microseconds>(endTime).time_since_epoch().count();
+        auto duration = end - start;
+        auto ms = duration * 0.001;
+        std::cout << "Gurobi Set Packing (ms): " << ms << std::endl;
+        std::cout << "MAX AUCTION VALUE: " << bestGurobiSetPackingAuction << std::endl << std::endl;
+    } catch (...) {
+        std::cerr << "Error in Gurobi set packing benchmark." << std::endl;
+    }
+
+
+    /***************************************************************************************************
+
+    MiniZinc Benchmark
+
+    ***************************************************************************************************/
 
 
     // // Output header
@@ -226,10 +262,3 @@ int main(int argc, char *argv[]) {
 
     return 0;
 }
-
-
-
-
-
-
-
