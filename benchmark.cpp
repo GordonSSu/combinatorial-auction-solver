@@ -4,7 +4,7 @@
 
 template <class T>
 __attribute__((always_inline)) inline void DoNotOptimize(const T &value) {
-  asm volatile("" : "+m"(const_cast<T &>(value)));
+    asm volatile("" : "+m"(const_cast<T &>(value)));
 }
 
 int main(int argc, char *argv[]) {
@@ -14,10 +14,10 @@ int main(int argc, char *argv[]) {
 
     bool solvedByKernelization;
 
-    // Input auction file name missing
+    // Input arguments missing
     if (argc < 3) {
         std::cerr << "Missing argument(s)." << std::endl;
-        std::cout << "Usage: ./auction-solver [auction file name]" << std::endl;
+        std::cout << "Usage: ./auction-solver [auction file name] [kernalization flag]" << std::endl;
         return 1;
     }
 
@@ -135,7 +135,6 @@ int main(int argc, char *argv[]) {
         auto duration = end - start;
         auto ms = duration * 0.001;
         std::cout << "Gurobi MWVC (ms): " << ms << std::endl;
-
         std::cout << "MAX AUCTION VALUE: " << bestGurobiMwvcAuction << std::endl;
     } catch (...) {
         std::cerr << "Error in Gurobi MWVC benchmark." << std::endl;
@@ -196,7 +195,6 @@ int main(int argc, char *argv[]) {
     //     auto duration = end - start;
     //     auto ms = duration * 0.001;
     //     std::cout << "Gurobi MWVC (ms): " << ms << std::endl;
-
     //     std::cout << "MAX AUCTION VALUE: " << bestGurobiMwvcAuction << std::endl;
     // }
 
